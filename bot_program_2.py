@@ -1,4 +1,4 @@
-import requests,pprint,time
+import requests,pprint,time,json
 from database import Database 
 #api_key = "1223943301:AAEkKcMia6MIOmpXL_UXDC0TI_DCBtSIC2A"
 api_key = "1318516274:AAHCjAYbosG4BHeOnDIkZQM-x_MNiiQVMes"
@@ -25,9 +25,17 @@ def latest_text_and_id():
 
     return (latest_text,latest_chat_id,latest_update_id)
 
-def send_echo_message(chatid,message):
+def build_keyboard(items):
+    keyboard = [[item] for item in items]
+    reply_markup = {"keyboard":keyboard, "one_time_keyboard": True}
+    return json.dumps(reply_markup)
+
+def send_echo_message(chatid,message,reply_markup=None):
     send_url = f"{base_url}{api_key}/sendMessage?chat_id={chatid}&text={message}"
+    if reply_markup:
+        send_url += "&reply_markup={}".format(reply_markup)
     requests.get(send_url)
+
 def main():
     old_update_id=0
     while True:
@@ -36,18 +44,8 @@ def main():
             send_echo_message(chat_id,text)
             old_update_id=last_update_id
 
-'''
-def todolist():
-    db=Database()
-    db.create_database()
-    db.insert_into_database("i am a emacs church")
-    db.delete_from_database("i am a emacs church")
-    db.insert_into_database("hello worlds")
-    db.insert_into_database("hello worlds two")
-    db.select_all_from_database()
-    db.purge_database()
-    db.select_one_from_database()
-'''
+
+
 def todolist():
     old_update_id=0
     print(request_url)
@@ -55,19 +53,40 @@ def todolist():
     while True:
         text,chat_id,last_update_id = latest_text_and_id()
         if last_update_id > old_update_id:
-            if text in db.select_all_from_database():
+            list_of_items= db.select_all_from_database()
+            
+            if text == "/start":
+                send_echo_message(chat_id,"Hello , welcome to the to do list bot")
+
+            elif text == "/finish":
+                keyboard = build_keyboard(list_of_items)
+                send_echo_message(chat_id,"Select any item to delete" , keyboard)
+
+            elif text in list_of_items:
                 db.delete_from_database(text)
-                print("text already existed and deleted")
-                if not db.select_all_from_database():
-                    send_echo_message(chat_id,"empty database")
+                list_of_items = db.select_all_from_database()
+                keyboard = build_keyboard(list_of_items)
+                if list_of_items:
+                    send_echo_message(chat_id,"It looks like you are entering the item which is in the list.The item is deleted . Select another item to delete or press /sendall to get the list",keyboard)
+                else:
+                    send_echo_message(chat_id,"The list is empty. Enter any thing to add to list")
+            elif text == "/sendall":
+                if list_of_items:
+                    new_message = '\n'.join(db.select_all_from_database())
+                    send_echo_message(chat_id,new_message)
+                else:
+                    send_echo_message(chat_id,"The list is empty.Enter anything to add to the list")
+            elif text.startswith('/'):
+                send_echo_message(chat_id,"Invalid command. press /help for commands")
+
             else:
                 print("text doesnt exist yet and its inserted")
                 db.insert_into_database(text)
-            new_message='\n'.join(db.select_all_from_database())
-            print(db.select_all_from_database())
-            print(text)
+                new_message='\n'.join(db.select_all_from_database())
+                print(db.select_all_from_database())
+                print(text)
             
-            send_echo_message(chat_id,new_message)
+                send_echo_message(chat_id,new_message)
             
             old_update_id=last_update_id
             
